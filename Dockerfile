@@ -23,7 +23,8 @@ RUN virtualenv $VENV --python=python3.6 && \
     . $VENV/bin/activate && \
     cd $CODE_DIR && \
     pip install -r requirements.txt && \
-    pip install pytest
+    pip install pytest && \
+    pip uninstall tensorflow
 
 ENV PATH=$VENV/bin:$PATH
 WORKDIR $CODE_DIR

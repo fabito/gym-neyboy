@@ -1,23 +1,24 @@
-import logging
 import math
+import os
 
 import numpy as np
 
 import gym
-from gym import spaces, utils
+from gym import spaces, utils, logger
 from gym.utils import seeding
 
 from gym_neyboy.envs.neyboy import SyncGame, ACTION_NAMES, ACTION_LEFT, ACTION_RIGHT, GAME_OVER_SCREEN
-
-log = logging.getLogger(__name__)
-log.setLevel(logging.DEBUG)
 
 
 class NeyboyEnv(gym.Env, utils.EzPickle):
     metadata = {'render.modes': ['human', 'rgb_array']}
 
-    def __init__(self, headless=False, score_threshold=0.95, death_reward=-1, user_data_dir=None):
-        utils.EzPickle.__init__(self, headless)
+    def __init__(self, headless=None, score_threshold=0.95, death_reward=-1, user_data_dir=None):
+        utils.EzPickle.__init__(self, headless, score_threshold, death_reward)
+
+        if headless is None:
+            headless = os.environ.get('GYM_NEYBOY_ENV_NON_HEADLESS', None) is None
+
         self.headless = headless
         self.scoring_threshold = score_threshold
         self.death_reward = death_reward
@@ -56,7 +57,7 @@ class NeyboyEnv(gym.Env, utils.EzPickle):
             angle = self.state.position['angle']
             cosine = math.cos(angle)
             reward = cosine if cosine > self.scoring_threshold else 0.1
-            log.debug('HiScore: {}, Score: {}, Action: {}, position_label: {}, Reward: {}, GameOver: {}'.format(
+            logger.debug('HiScore: {}, Score: {}, Action: {}, position_label: {}, Reward: {}, GameOver: {}'.format(
                 self.state.hiscore,
                 self.state.score,
                 ACTION_NAMES[a],
