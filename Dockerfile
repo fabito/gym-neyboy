@@ -11,6 +11,7 @@ RUN apt-get -y update && \
                 libopenmpi-dev \
                 python-pip \
                 zlib1g-dev \
+                python3-tk \
                 cmake &&  \
      pip install virtualenv
 
@@ -23,7 +24,7 @@ RUN virtualenv $VENV --python=python3.6 && \
     . $VENV/bin/activate && \
     cd $CODE_DIR && \
     pip install -r requirements.txt && \
-    pip install pytest && \
+    pip install pytest matplotlib pandas && \
     pip uninstall -y tensorflow
 
 ENV PATH=$VENV/bin:$PATH
