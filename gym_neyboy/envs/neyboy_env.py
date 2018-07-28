@@ -57,13 +57,14 @@ class NeyboyEnv(gym.Env, utils.EzPickle):
             angle = self.state.position['angle']
             cosine = math.cos(angle)
             reward = cosine if cosine > self.scoring_threshold else 0.1
-            logger.debug('HiScore: {}, Score: {}, Action: {}, position_label: {}, Reward: {}, GameOver: {}'.format(
-                self.state.hiscore,
-                self.state.score,
-                ACTION_NAMES[a],
-                self.state.position['name'],
-                reward,
-                is_over))
+
+        logger.debug('HiScore: {}, Score: {}, Action: {}, position_label: {}, Reward: {}, GameOver: {}'.format(
+            self.state.hiscore,
+            self.state.score,
+            ACTION_NAMES[a],
+            self.state.position['name'],
+            reward,
+            is_over))
         return self.state.snapshot, reward, is_over, dict(score=self.state.score, hiscore=self.state.score, position=self.state.position['angle'])
 
     def reset(self):

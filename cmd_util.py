@@ -10,7 +10,6 @@ from baselines.common.vec_env.subproc_vec_env import SubprocVecEnv
 
 import gym_neyboy
 
-
 def make_neyboy_env(env_id, num_env, seed, wrapper_kwargs=None, start_index=0):
     """
     Create a wrapped, monitored SubprocVecEnv for Neyboy.

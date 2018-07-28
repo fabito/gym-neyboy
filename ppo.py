@@ -35,7 +35,7 @@ def train(env_id, num_timesteps, num_workers, seed, policy, load_path):
 def main():
     parser = neyboy_arg_parser()
     parser.add_argument('--policy', help='Policy architecture', choices=['cnn', 'lstm', 'lnlstm', 'mlp'], default='cnn')
-    parser.add_argument('--num-workers', type=int, default=4)
+    parser.add_argument('--num-workers', type=int, default=8)
     parser.add_argument('--load-path', help='load path', default=None)
     args = parser.parse_args()
     logger.configure()
