@@ -7,6 +7,8 @@ RUN apt-get -y update && \
     apt-get -y install \
                 git \
                 wget \
+                libsm6 \
+                libxext6 \
                 python3.6-dev \
                 libopenmpi-dev \
                 python-pip \
