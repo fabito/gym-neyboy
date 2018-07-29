@@ -11,7 +11,7 @@ from baselines.ppo2.policies import CnnPolicy, LstmPolicy, LnLstmPolicy, MlpPoli
 from cmd_util import neyboy_arg_parser, make_neyboy_env
 
 
-def train(env_id, num_timesteps, num_workers, seed, policy, load_path):
+def train(env_id, learning_rate, num_epoch, buffer_size, batch_size, num_timesteps, num_workers, seed, policy, load_path):
     ncpu = multiprocessing.cpu_count()
     if sys.platform == 'darwin':
         ncpu //= 2
@@ -23,10 +23,12 @@ def train(env_id, num_timesteps, num_workers, seed, policy, load_path):
 
     env = VecFrameStack(make_neyboy_env(env_id, num_workers, seed), 4)
     policy = {'cnn': CnnPolicy, 'lstm': LstmPolicy, 'lnlstm': LnLstmPolicy, 'mlp': MlpPolicy}[policy]
-    ppo2.learn(policy=policy, env=env, nsteps=128, nminibatches=4,
-               lam=0.95, gamma=0.99, noptepochs=4, log_interval=1,
+    nsteps = buffer_size // num_workers
+    nminibatches = buffer_size // batch_size
+    ppo2.learn(policy=policy, env=env, nsteps=nsteps, nminibatches=nminibatches,
+               lam=0.95, gamma=0.99, noptepochs=num_epoch, log_interval=1,
                ent_coef=.01,
-               lr=lambda f: f * 2.5e-4,
+               lr=lambda f: f * learning_rate,
                cliprange=lambda f: f * 0.1,
                total_timesteps=int(num_timesteps * 1.1),
                save_interval=10, load_path=load_path)
@@ -36,10 +38,14 @@ def main():
     parser = neyboy_arg_parser()
     parser.add_argument('--policy', help='Policy architecture', choices=['cnn', 'lstm', 'lnlstm', 'mlp'], default='cnn')
     parser.add_argument('--num-workers', type=int, default=8)
+    parser.add_argument('--buffer-size', type=int, default=1024)
+    parser.add_argument('--batch-size', type=int, default=512)
+    parser.add_argument('--num-epoch', type=int, default=4)
+    parser.add_argument('--lr', type=float, default=2.5e-4)
     parser.add_argument('--load-path', help='load path', default=None)
     args = parser.parse_args()
     logger.configure()
-    train(args.env, num_timesteps=args.num_timesteps, seed=args.seed, num_workers=args.num_workers, policy=args.policy, load_path=args.load_path)
+    train(args.env, learning_rate=args.lr, num_epoch=args.num_epoch, buffer_size=args.buffer_size, batch_size=args.batch_size, num_timesteps=args.num_timesteps, seed=args.seed, num_workers=args.num_workers, policy=args.policy, load_path=args.load_path)
 
 
 if __name__ == '__main__':

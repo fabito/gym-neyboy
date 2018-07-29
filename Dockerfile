@@ -25,9 +25,7 @@ COPY requirements.txt $CODE_DIR/
 RUN virtualenv $VENV --python=python3.6 && \
     . $VENV/bin/activate && \
     cd $CODE_DIR && \
-    pip install -r requirements.txt && \
-    pip install pytest matplotlib pandas && \
-    pip uninstall -y tensorflow
+    pip install -r requirements.txt
 
 ENV PATH=$VENV/bin:$PATH
 WORKDIR $CODE_DIR
