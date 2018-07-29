@@ -48,7 +48,12 @@ class Game:
             self.browser = await launch(headless=self.headless, userDataDir=self.user_data_dir)
         else:
             self.browser = await launch(headless=self.headless)
-        self.page = await self.browser.newPage()
+
+        pages = await self.browser.pages()
+        if len(pages) > 0:
+            self.page = pages[0]
+        else:
+            self.page = await self.browser.newPage()
 
     @staticmethod
     async def create(headless=True, user_data_dir=None) -> 'Game':
