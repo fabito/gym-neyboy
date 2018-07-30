@@ -110,7 +110,7 @@ class Game:
         return animation_name
 
     async def load(self):
-        await self.page.goto('https://neyboy.com.br', {'waitUntil': 'networkidle2'})
+        await self.page.goto('https://fabito.github.io/neyboy/', {'waitUntil': 'networkidle2'})
         await self.is_loaded()
         return self
 
@@ -365,6 +365,6 @@ class SyncGame:
         return sync(getattr(self.game, attr))
 
     @staticmethod
-    def create(headless=True, user_data_dir=None, navigation_timeout=60) -> 'SyncGame':
+    def create(headless=True, user_data_dir=None, navigation_timeout=DEFAULT_NAVIGATION_TIMEOUT) -> 'SyncGame':
         o = sync(Game.create)(headless, user_data_dir, navigation_timeout)
         return SyncGame(o)

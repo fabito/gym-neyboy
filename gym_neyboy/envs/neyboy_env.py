@@ -7,7 +7,8 @@ import gym
 from gym import spaces, utils, logger
 from gym.utils import seeding
 
-from gym_neyboy.envs.neyboy import SyncGame, ACTION_NAMES, ACTION_LEFT, ACTION_RIGHT, GAME_OVER_SCREEN
+from gym_neyboy.envs.neyboy import SyncGame, ACTION_NAMES, ACTION_LEFT, ACTION_RIGHT, GAME_OVER_SCREEN, \
+    DEFAULT_NAVIGATION_TIMEOUT
 
 
 class NeyboyEnv(gym.Env, utils.EzPickle):
@@ -27,7 +28,7 @@ class NeyboyEnv(gym.Env, utils.EzPickle):
         self._state = None
         self.viewer = None
 
-        navigation_timeout = int(os.environ.get('GYM_NEYBOY_ENV_TIMEOUT', '60'))
+        navigation_timeout = int(os.environ.get('GYM_NEYBOY_ENV_TIMEOUT', DEFAULT_NAVIGATION_TIMEOUT))
 
         self.game = SyncGame.create(headless=headless, user_data_dir=user_data_dir, navigation_timeout=navigation_timeout)
         self.game.load()
