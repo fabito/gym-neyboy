@@ -27,7 +27,9 @@ class NeyboyEnv(gym.Env, utils.EzPickle):
         self._state = None
         self.viewer = None
 
-        self.game = SyncGame.create(headless=headless, user_data_dir=user_data_dir)
+        navigation_timeout = int(os.environ.get('GYM_NEYBOY_ENV_TIMEOUT', '60'))
+
+        self.game = SyncGame.create(headless=headless, user_data_dir=user_data_dir, navigation_timeout=navigation_timeout)
         self.game.load()
         self._update_state()
 

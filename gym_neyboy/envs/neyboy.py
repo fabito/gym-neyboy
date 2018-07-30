@@ -33,9 +33,10 @@ GameState = namedtuple('GameState',
 
 class Game:
 
-    def __init__(self, headless=True, user_data_dir=None):
+    def __init__(self, headless=True, user_data_dir=None, navigation_timeout=60):
         self.headless = headless
         self.user_data_dir = user_data_dir
+        self.navigation_timeout = navigation_timeout
         self.is_running = False
         self.browser = None
         self.page = None
@@ -47,7 +48,7 @@ class Game:
         if self.user_data_dir is not None:
             self.browser = await launch(headless=self.headless, userDataDir=self.user_data_dir, args=['--no-sandbox'])
         else:
-            self.browser = await launch(headless=self.headless)
+            self.browser = await launch(headless=self.headless, args=['--no-sandbox'])
 
         pages = await self.browser.pages()
         if len(pages) > 0:
@@ -55,9 +56,12 @@ class Game:
         else:
             self.page = await self.browser.newPage()
 
+        self.page.setDefaultNavigationTimeout(self.navigation_timeout)
+
+
     @staticmethod
-    async def create(headless=True, user_data_dir=None) -> 'Game':
-        o = Game(headless, user_data_dir)
+    async def create(headless=True, user_data_dir=None, navigation_timeout=60) -> 'Game':
+        o = Game(headless, user_data_dir, navigation_timeout)
         await o.initialize()
         return o
 
@@ -359,6 +363,6 @@ class SyncGame:
         return sync(getattr(self.game, attr))
 
     @staticmethod
-    def create(headless=True, user_data_dir=None) -> 'SyncGame':
-        o = sync(Game.create)(headless, user_data_dir)
+    def create(headless=True, user_data_dir=None, navigation_timeout=60) -> 'SyncGame':
+        o = sync(Game.create)(headless, user_data_dir, navigation_timeout)
         return SyncGame(o)
