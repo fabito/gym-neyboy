@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import datetime
 import multiprocessing
 import sys
 
@@ -44,7 +45,11 @@ def main():
     parser.add_argument('--lr', type=float, default=2.5e-4)
     parser.add_argument('--load-path', help='load path', default=None)
     args = parser.parse_args()
-    logger.configure()
+
+    dir_sufix = datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S-%f')
+    dir_name = 'w{}-b{}-buf{}-e{}-lr{}_{}'.format(args.num_workers, args.batch_size, args.buffer_size, args.num_epoch, args.lr, dir_sufix)
+    format_strs = 'stdout,log,csv,tensorboard'
+    logger.configure(dir_name, format_strs)
     train(args.env, learning_rate=args.lr, num_epoch=args.num_epoch, buffer_size=args.buffer_size, batch_size=args.batch_size, num_timesteps=args.num_timesteps, seed=args.seed, num_workers=args.num_workers, policy=args.policy, load_path=args.load_path)
 
 
