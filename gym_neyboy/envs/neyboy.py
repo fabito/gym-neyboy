@@ -31,9 +31,11 @@ GameState = namedtuple('GameState',
                         'position'])
 
 
+DEFAULT_NAVIGATION_TIMEOUT = 60 * 1000
+
 class Game:
 
-    def __init__(self, headless=True, user_data_dir=None, navigation_timeout=60):
+    def __init__(self, headless=True, user_data_dir=None, navigation_timeout=DEFAULT_NAVIGATION_TIMEOUT):
         self.headless = headless
         self.user_data_dir = user_data_dir
         self.navigation_timeout = navigation_timeout
@@ -60,7 +62,7 @@ class Game:
 
 
     @staticmethod
-    async def create(headless=True, user_data_dir=None, navigation_timeout=60) -> 'Game':
+    async def create(headless=True, user_data_dir=None, navigation_timeout=DEFAULT_NAVIGATION_TIMEOUT) -> 'Game':
         o = Game(headless, user_data_dir, navigation_timeout)
         await o.initialize()
         return o
