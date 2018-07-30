@@ -27,6 +27,14 @@ def train(env_id, learning_rate, num_epoch, buffer_size, batch_size, num_timeste
     policy = {'cnn': CnnPolicy, 'lstm': LstmPolicy, 'lnlstm': LnLstmPolicy, 'mlp': MlpPolicy}[policy]
     nsteps = buffer_size // num_workers
     nminibatches = buffer_size // batch_size
+
+    logger.info('buffer_size={}'.format(buffer_size))
+    logger.info('batch_size={}'.format(batch_size))
+    logger.info('num-workers={}'.format(num_workers))
+    logger.info('nsteps={}'.format(nsteps))
+    logger.info('nminibatches={}'.format(nminibatches))
+    logger.info('noptepochs={}'.format(num_epoch))
+
     ppo2.learn(policy=policy, env=env, nsteps=nsteps, nminibatches=nminibatches,
                lam=0.95, gamma=0.99, noptepochs=num_epoch, log_interval=1,
                ent_coef=.01,
@@ -52,7 +60,9 @@ def main():
     dir_name = os.path.join(args.output_dir, 'w{}-b{}-buf{}-e{}-lr{}_{}'.format(args.num_workers, args.batch_size, args.buffer_size, args.num_epoch, args.lr, dir_sufix))
     format_strs = 'stdout,log,csv,tensorboard'.split(',')
     logger.configure(dir_name, format_strs)
-    train(args.env, learning_rate=args.lr, num_epoch=args.num_epoch, buffer_size=args.buffer_size, batch_size=args.batch_size, num_timesteps=args.num_timesteps, seed=args.seed, num_workers=args.num_workers, policy=args.policy, load_path=args.load_path)
+    train(args.env, learning_rate=args.lr, num_epoch=args.num_epoch, buffer_size=args.buffer_size,
+          batch_size=args.batch_size, num_timesteps=args.num_timesteps, seed=args.seed,
+          num_workers=args.num_workers, policy=args.policy, load_path=args.load_path)
 
 
 if __name__ == '__main__':
