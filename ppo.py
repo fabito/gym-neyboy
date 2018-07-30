@@ -2,6 +2,7 @@
 import datetime
 import multiprocessing
 import sys
+import os
 
 import tensorflow as tf
 from baselines import logger
@@ -38,6 +39,7 @@ def train(env_id, learning_rate, num_epoch, buffer_size, batch_size, num_timeste
 def main():
     parser = neyboy_arg_parser()
     parser.add_argument('--policy', help='Policy architecture', choices=['cnn', 'lstm', 'lnlstm', 'mlp'], default='cnn')
+    parser.add_argument('--output-dir', help='Output dir', default='/tmp')
     parser.add_argument('--num-workers', type=int, default=8)
     parser.add_argument('--buffer-size', type=int, default=1024)
     parser.add_argument('--batch-size', type=int, default=512)
@@ -47,8 +49,8 @@ def main():
     args = parser.parse_args()
 
     dir_sufix = datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S-%f')
-    dir_name = 'w{}-b{}-buf{}-e{}-lr{}_{}'.format(args.num_workers, args.batch_size, args.buffer_size, args.num_epoch, args.lr, dir_sufix)
-    format_strs = 'stdout,log,csv,tensorboard'
+    dir_name = os.path.join(args.output_dir, 'w{}-b{}-buf{}-e{}-lr{}_{}'.format(args.num_workers, args.batch_size, args.buffer_size, args.num_epoch, args.lr, dir_sufix))
+    format_strs = 'stdout,log,csv,tensorboard'.split(',')
     logger.configure(dir_name, format_strs)
     train(args.env, learning_rate=args.lr, num_epoch=args.num_epoch, buffer_size=args.buffer_size, batch_size=args.batch_size, num_timesteps=args.num_timesteps, seed=args.seed, num_workers=args.num_workers, policy=args.policy, load_path=args.load_path)
 
