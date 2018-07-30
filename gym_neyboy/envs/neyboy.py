@@ -10,7 +10,7 @@ from time import sleep
 
 import numpy as np
 from PIL import Image
-from pyppeteer import launch
+from pyppeteer import launch, errors
 from syncer import sync
 
 
@@ -199,6 +199,10 @@ class Game:
             return false;
         }''')
 
+    async def _hard_restart(self):
+        await self.page.reload({'waitUntil': 'networkidle2'})
+        await self.is_loaded()
+
     async def restart(self):
         logging.debug('Restarting game')
         self.game_id = str(uuid.uuid4())
@@ -206,16 +210,17 @@ class Game:
         playing_status = await self._get_is_playing_status()
         if playing_status == START_SCREEN:
             logging.debug('Start screen')
-        # elif playing_status == 1:  # game is running
-        #     logging.debug('')
         elif playing_status == GAME_OVER_SCREEN:  # game over
-            await self.wait_until_replay_button_is_active()
-            logging.debug('Replay button active')
-            sleep(0.5)
-            await self.page.mouse.click(400, 525)
+            try:
+                await self.wait_until_replay_button_is_active()
+                logging.debug('Replay button active')
+                sleep(0.5)
+                await self.page.mouse.click(400, 525)
+            except errors.TimeoutError:
+                logging.warning('Timeout while waiting for replay button')
+                await self._hard_restart()
         else:
-            await self.page.reload({'waitUntil': 'networkidle2'})
-            await self.is_loaded()
+            await self._hard_restart()
 
         await self.start()
 
