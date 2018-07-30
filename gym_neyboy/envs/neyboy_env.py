@@ -13,14 +13,15 @@ from gym_neyboy.envs.neyboy import SyncGame, ACTION_NAMES, ACTION_LEFT, ACTION_R
 class NeyboyEnv(gym.Env, utils.EzPickle):
     metadata = {'render.modes': ['human', 'rgb_array']}
 
-    def __init__(self, headless=None, score_threshold=0.95, death_reward=-1, user_data_dir=None):
+    def __init__(self, headless=None, score_threshold=0.95, death_reward=-1, stay_alive_reward=0.1, user_data_dir=None):
         utils.EzPickle.__init__(self, headless, score_threshold, death_reward)
 
         if headless is None:
             headless = os.environ.get('GYM_NEYBOY_ENV_NON_HEADLESS', None) is None
 
         self.headless = headless
-        self.scoring_threshold = score_threshold
+        self.score_threshold = score_threshold
+        self.stay_alive_reward = stay_alive_reward
         self.death_reward = death_reward
 
         self._state = None
@@ -56,7 +57,7 @@ class NeyboyEnv(gym.Env, utils.EzPickle):
         else:
             angle = self.state.position['angle']
             cosine = math.cos(angle)
-            reward = cosine if cosine > self.scoring_threshold else 0.1
+            reward = cosine if cosine > self.score_threshold else self.stay_alive_reward
 
         logger.debug('HiScore: {}, Score: {}, Action: {}, position_label: {}, Reward: {}, GameOver: {}'.format(
             self.state.hiscore,

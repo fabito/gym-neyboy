@@ -45,7 +45,7 @@ class Game:
 
     async def initialize(self):
         if self.user_data_dir is not None:
-            self.browser = await launch(headless=self.headless, userDataDir=self.user_data_dir)
+            self.browser = await launch(headless=self.headless, userDataDir=self.user_data_dir, args=['--no-sandbox'])
         else:
             self.browser = await launch(headless=self.headless)
 
