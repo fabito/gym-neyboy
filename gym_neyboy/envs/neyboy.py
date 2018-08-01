@@ -1,7 +1,12 @@
 import base64
 import datetime as dt
 import io
-import logging
+
+try:
+    from gym import logger
+except:
+    import logging as logger
+
 import random
 import re
 import uuid
@@ -10,15 +15,13 @@ from time import sleep
 
 import numpy as np
 from PIL import Image
-from pyppeteer import launch, errors
+from pyppeteer import launch, errors, connect
 from syncer import sync
-
 
 ACTION_NAMES = ["NOOP", "LEFT", "RIGHT"]
 ACTION_NONE = 0
 ACTION_LEFT = 1
 ACTION_RIGHT = 2
-
 
 START_SCREEN = 0
 GAME_SCREEN = 1
@@ -30,12 +33,15 @@ GameState = namedtuple('GameState',
                        ['game_id', 'id', 'score', 'status', 'hiscore', 'snapshot', 'timestamp', 'dimensions',
                         'position'])
 
-
 DEFAULT_NAVIGATION_TIMEOUT = 60 * 1000
+DEFAULT_GAME_URL = 'https://fabito.github.io/neyboy/'
+DEFAULT_BROWSER_WS_ENDPOINT = 'ws://localhost:3000'
+
 
 class Game:
 
-    def __init__(self, headless=True, user_data_dir=None, navigation_timeout=DEFAULT_NAVIGATION_TIMEOUT):
+    def __init__(self, headless=True, user_data_dir=None, navigation_timeout=DEFAULT_NAVIGATION_TIMEOUT,
+                 game_url=DEFAULT_GAME_URL, browser_ws_endpoint=None):
         self.headless = headless
         self.user_data_dir = user_data_dir
         self.navigation_timeout = navigation_timeout
@@ -45,25 +51,34 @@ class Game:
         self.state = None
         self.game_id = str(uuid.uuid4())
         self.state_id = 0
+        self.game_url = game_url
+        self.browser_ws_endpoint = browser_ws_endpoint
 
     async def initialize(self):
-        if self.user_data_dir is not None:
-            self.browser = await launch(headless=self.headless, userDataDir=self.user_data_dir, args=['--no-sandbox'])
-        else:
-            self.browser = await launch(headless=self.headless, args=['--no-sandbox'])
-
-        pages = await self.browser.pages()
-        if len(pages) > 0:
-            self.page = pages[0]
-        else:
+        if self.browser_ws_endpoint is not None:
+            logger.info('Connecting to running instance at: %s', self.browser_ws_endpoint)
+            self.browser = await connect(browserWSEndpoint=self.browser_ws_endpoint)
             self.page = await self.browser.newPage()
+        else:
+            logger.info('Launching new browser instance')
+            if self.user_data_dir is not None:
+                self.browser = await launch(headless=self.headless, userDataDir=self.user_data_dir,
+                                            args=['--no-sandbox'])
+            else:
+                self.browser = await launch(headless=self.headless, args=['--no-sandbox'])
+
+            pages = await self.browser.pages()
+            if len(pages) > 0:
+                self.page = pages[0]
+            else:
+                self.page = await self.browser.newPage()
 
         self.page.setDefaultNavigationTimeout(self.navigation_timeout)
 
-
     @staticmethod
-    async def create(headless=True, user_data_dir=None, navigation_timeout=DEFAULT_NAVIGATION_TIMEOUT) -> 'Game':
-        o = Game(headless, user_data_dir, navigation_timeout)
+    async def create(headless=True, user_data_dir=None, navigation_timeout=DEFAULT_NAVIGATION_TIMEOUT,
+                     game_url=DEFAULT_GAME_URL, browser_ws_endpoint=None) -> 'Game':
+        o = Game(headless, user_data_dir, navigation_timeout, game_url, browser_ws_endpoint)
         await o.initialize()
         return o
 
@@ -110,7 +125,7 @@ class Game:
         return animation_name
 
     async def load(self):
-        await self.page.goto('https://fabito.github.io/neyboy/', {'waitUntil': 'networkidle2'})
+        await self.page.goto(self.game_url, {'waitUntil': 'networkidle2'})
         await self.is_loaded()
         return self
 
@@ -204,20 +219,20 @@ class Game:
         await self.is_loaded()
 
     async def restart(self):
-        logging.debug('Restarting game')
+        logger.debug('Restarting game')
         self.game_id = str(uuid.uuid4())
         self.state_id = 0
         playing_status = await self._get_is_playing_status()
         if playing_status == START_SCREEN:
-            logging.debug('Start screen')
+            logger.debug('Start screen')
         elif playing_status == GAME_OVER_SCREEN:  # game over
             try:
                 await self.wait_until_replay_button_is_active()
-                logging.debug('Replay button active')
+                logger.debug('Replay button active')
                 sleep(0.5)
                 await self.page.mouse.click(400, 525)
             except errors.TimeoutError:
-                logging.warning('Timeout while waiting for replay button')
+                logger.warn('Timeout while waiting for replay button')
                 await self._hard_restart()
         else:
             await self._hard_restart()
@@ -370,6 +385,7 @@ class SyncGame:
         return sync(getattr(self.game, attr))
 
     @staticmethod
-    def create(headless=True, user_data_dir=None, navigation_timeout=DEFAULT_NAVIGATION_TIMEOUT) -> 'SyncGame':
-        o = sync(Game.create)(headless, user_data_dir, navigation_timeout)
+    def create(headless=True, user_data_dir=None, navigation_timeout=DEFAULT_NAVIGATION_TIMEOUT,
+               game_url=DEFAULT_GAME_URL, browser_ws_endpoint=None) -> 'SyncGame':
+        o = sync(Game.create)(headless, user_data_dir, navigation_timeout, game_url, browser_ws_endpoint)
         return SyncGame(o)
