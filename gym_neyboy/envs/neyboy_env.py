@@ -28,6 +28,8 @@ class NeyboyEnv(gym.Env, utils.EzPickle):
         self._state = None
         self.viewer = None
 
+        self.reward_strategy = os.environ.get('GYM_NEYBOY_REWARD_STRATEGY', 'cosine')
+
         navigation_timeout = int(os.environ.get('GYM_NEYBOY_ENV_TIMEOUT', DEFAULT_NAVIGATION_TIMEOUT))
         game_url = os.environ.get('GYM_NEYBOY_GAME_URL', DEFAULT_GAME_URL)
         browser_ws_endpoint = os.environ.get('GYM_NEYBOY_BROWSER_WS_ENDPOINT', None)
@@ -67,8 +69,16 @@ class NeyboyEnv(gym.Env, utils.EzPickle):
         else:
             angle = self.state.position['angle']
             cosine = math.cos(angle)
-            reward = 1.0 #cosine if cosine > self.score_threshold else self.stay_alive_reward
-
+            
+            if self.reward_strategy == 'cosine':
+                reward = cosine
+            elif self.reward_strategy == 'one':
+                reward = 1.0
+            elif self.reward_strategy == 'cosine_thresh':
+                reward = cosine if cosine > self.score_threshold else self.stay_alive_reward
+            else:
+                raise ValueError('Invalid reward strategy: {}'.format(self.reward_strategy))    
+    
         logger.debug('HiScore: {}, Score: {}, Action: {}, position_label: {}, Reward: {}, GameOver: {}'.format(
             self.state.hiscore,
             self.state.score,
