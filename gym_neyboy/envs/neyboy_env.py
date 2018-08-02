@@ -76,13 +76,16 @@ class NeyboyEnv(gym.Env, utils.EzPickle):
             self.state.position['name'],
             reward,
             is_over))
-        return self.state.snapshot, reward, is_over, dict(score=self.state.score, hiscore=self.state.score, position=self.state.position['angle'])
+        return self._get_obs(), reward, is_over, dict(score=self.state.score, hiscore=self.state.score, position=self.state.position['angle'])
+
+    def _get_obs(self):
+        return self.state.snapshot
 
     def reset(self):
         self.game.restart()
         self._update_state()
         self.game.pause()
-        return self._state.snapshot
+        return self._get_obs()
 
     def render(self, mode='human', close=False):
         img = self.state.snapshot
@@ -104,3 +107,15 @@ class NeyboyEnv(gym.Env, utils.EzPickle):
 
     def seed(self, seed=None):
         self.np_random, seed1 = seeding.np_random(seed)
+
+
+class NeyboyEnvAngle(NeyboyEnv):
+    def __init__(self, headless=None, score_threshold=0.95, death_reward=-1, stay_alive_reward=0.1, user_data_dir=None):
+        super().__init__(headless, score_threshold, death_reward, stay_alive_reward, user_data_dir)
+        self.observation_space = spaces.Box(low=-1, high=1, shape=(), dtype=np.float32)
+
+    def _update_state(self):
+        self._state = self.game.get_state(include_snapshot=None)
+
+    def _get_obs(self):
+        return self.state.position['angle']
