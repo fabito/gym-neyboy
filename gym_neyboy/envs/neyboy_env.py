@@ -14,16 +14,16 @@ from gym_neyboy.envs.neyboy import SyncGame, ACTION_NAMES, ACTION_LEFT, ACTION_R
 class NeyboyEnv(gym.Env, utils.EzPickle):
     metadata = {'render.modes': ['human', 'rgb_array']}
 
-    def __init__(self, headless=None, score_threshold=0.95, death_reward=-1, stay_alive_reward=0.1, user_data_dir=None):
+    def __init__(self, headless=None, score_threshold=0.965, death_reward=-1, stay_alive_reward=0.1, user_data_dir=None):
         utils.EzPickle.__init__(self, headless, score_threshold, death_reward)
 
         if headless is None:
             headless = os.environ.get('GYM_NEYBOY_ENV_NON_HEADLESS', None) is None
 
         self.headless = headless
-        self.score_threshold = score_threshold
-        self.stay_alive_reward = stay_alive_reward
-        self.death_reward = death_reward
+        self.score_threshold = float(os.environ.get('GYM_NEYBOY_SCORE_THRESH', score_threshold))
+        self.stay_alive_reward = float(os.environ.get('GYM_NEYBOY_STAY_ALIVE_REWARD', stay_alive_reward))
+        self.death_reward = float(os.environ.get('GYM_NEYBOY_DEATH_REWARD', death_reward))
 
         self._state = None
         self.viewer = None
@@ -75,7 +75,7 @@ class NeyboyEnv(gym.Env, utils.EzPickle):
             elif self.reward_strategy == 'one':
                 reward = 1.0
             elif self.reward_strategy == 'cosine_thresh':
-                reward = cosine if cosine > self.score_threshold else self.stay_alive_reward
+                reward = cosine if cosine > self.score_threshold else cosine * self.stay_alive_reward
             else:
                 raise ValueError('Invalid reward strategy: {}'.format(self.reward_strategy))    
     
