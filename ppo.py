@@ -4,6 +4,7 @@ import multiprocessing
 import sys
 import os
 
+import numpy as np
 import tensorflow as tf
 from baselines import logger
 from baselines.common.vec_env.vec_frame_stack import VecFrameStack
@@ -13,7 +14,7 @@ from baselines.ppo2.policies import CnnPolicy, LstmPolicy, LnLstmPolicy, MlpPoli
 from cmd_util import neyboy_arg_parser, make_neyboy_env
 
 
-def train(env_id, learning_rate, num_epoch, buffer_size, batch_size, num_timesteps, num_workers, seed, policy, load_path, frame_skip):
+def train(env_id, learning_rate, max_learning_rate, num_epoch, buffer_size, batch_size, num_timesteps, num_workers, seed, policy, load_path, frame_skip):
     ncpu = multiprocessing.cpu_count()
     if sys.platform == 'darwin':
         ncpu //= 2
@@ -34,12 +35,27 @@ def train(env_id, learning_rate, num_epoch, buffer_size, batch_size, num_timeste
     logger.info('nsteps={}'.format(nsteps))
     logger.info('nminibatches={}'.format(nminibatches))
     logger.info('noptepochs={}'.format(num_epoch))
+    logger.info('lr={}'.format(learning_rate))
+    logger.info('max_lr={}'.format(max_learning_rate))
+    logger.info('load_path={}'.format(load_path))
+    logger.info('frame_skip={}'.format(frame_skip))
+
     total_timesteps = int(num_timesteps * 1.1)
+
+    def lr_fn(frac, iteration):
+        num_iterations = nminibatches
+        stepsize = num_iterations // 2
+        base_lr = frac * learning_rate
+        max_lr = frac * max_learning_rate
+        cycle = np.floor(1 + iteration / (2 * stepsize))
+        x = np.abs(iteration / stepsize - 2 * cycle + 1)
+        lr = base_lr + (max_lr - base_lr) * np.maximum(0, (1 - x))
+        return lr
 
     ppo2.learn(policy=policy, env=env, nsteps=nsteps, nminibatches=nminibatches,
                lam=0.95, gamma=0.99, noptepochs=num_epoch, log_interval=1,
                ent_coef=.01,
-               lr=lambda f: f * learning_rate,
+               lr=lr_fn,
                cliprange=lambda f: f * 0.1,
                total_timesteps=total_timesteps,
                save_interval=10, load_path=load_path)
@@ -55,6 +71,7 @@ def main():
     parser.add_argument('--batch-size', type=int, default=128)
     parser.add_argument('--num-epoch', type=int, default=4)
     parser.add_argument('--lr', type=float, default=2.5e-4)
+    parser.add_argument('--max-lr', type=float, default=8e-4)
     parser.add_argument('--load-path', help='load path', default=None)
     args = parser.parse_args()
 
@@ -62,7 +79,7 @@ def main():
     dir_name = os.path.join(args.output_dir, 'w{}-b{}-buf{}-e{}-fs{}-lr{}--{}'.format(args.num_workers, args.batch_size, args.buffer_size, args.num_epoch, args.frame_skip, args.lr, dir_sufix))
     format_strs = 'stdout,log,csv,tensorboard'.split(',')
     logger.configure(dir_name, format_strs)
-    train(args.env, learning_rate=args.lr, num_epoch=args.num_epoch, buffer_size=args.buffer_size,
+    train(args.env, learning_rate=args.lr, max_learning_rate=args.max_lr, num_epoch=args.num_epoch, buffer_size=args.buffer_size,
           batch_size=args.batch_size, num_timesteps=args.num_timesteps, seed=args.seed,
           num_workers=args.num_workers, policy=args.policy, load_path=args.load_path, frame_skip=args.frame_skip)
 

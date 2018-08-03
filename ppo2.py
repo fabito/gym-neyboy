@@ -10,6 +10,7 @@ from baselines.common import explained_variance
 from baselines.common.runners import AbstractEnvRunner
 
 
+
 class Model(object):
     def __init__(self, *, policy, ob_space, ac_space, nbatch_act, nbatch_train,
                  nsteps, ent_coef, vf_coef, max_grad_norm):
@@ -150,7 +151,7 @@ def sf01(arr):
 
 
 def constfn(val):
-    def f(_):
+    def f(f, i):
         return val
 
     return f
@@ -198,15 +199,19 @@ def learn(*, policy, env, nsteps, total_timesteps, ent_coef, lr,
         nbatch_train = nbatch // nminibatches
         tstart = time.time()
         frac = 1.0 - (update - 1.0) / nupdates
-        lrnow = lr(frac)
+
         cliprangenow = cliprange(frac)
         obs, returns, masks, actions, values, neglogpacs, states, epinfos = runner.run()  # pylint: disable=E0632
         epinfobuf.extend(epinfos)
+        mblrvals = []
         mblossvals = []
         if states is None:  # nonrecurrent version
             inds = np.arange(nbatch)
-            for _ in range(noptepochs):
+            for iteration in range(noptepochs):
                 np.random.shuffle(inds)
+                lrnow = lr(frac, iteration + 1)
+                logger.info('lrnow={} (frac={},iteration={})'.format(lrnow, frac, iteration))
+                mblrvals.append(lrnow)
                 for start in range(0, nbatch, nbatch_train):
                     end = start + nbatch_train
                     mbinds = inds[start:end]
@@ -218,8 +223,9 @@ def learn(*, policy, env, nsteps, total_timesteps, ent_coef, lr,
             envinds = np.arange(nenvs)
             flatinds = np.arange(nenvs * nsteps).reshape(nenvs, nsteps)
             envsperbatch = nbatch_train // nsteps
-            for _ in range(noptepochs):
+            for iteration in range(noptepochs):
                 np.random.shuffle(envinds)
+                lrnow = lr(frac, iteration + 1)
                 for start in range(0, nenvs, envsperbatch):
                     end = start + envsperbatch
                     mbenvinds = envinds[start:end]
@@ -229,6 +235,7 @@ def learn(*, policy, env, nsteps, total_timesteps, ent_coef, lr,
                     mblossvals.append(model.train(lrnow, cliprangenow, *slices, mbstates))
 
         lossvals = np.mean(mblossvals, axis=0)
+        lrvals = np.mean(mblrvals)
         tnow = time.time()
         fps = int(nbatch / (tnow - tstart))
         if update % log_interval == 0 or update == 1:
@@ -241,7 +248,7 @@ def learn(*, policy, env, nsteps, total_timesteps, ent_coef, lr,
             logger.logkv('eprewmean', safemean([epinfo['r'] for epinfo in epinfobuf]))
             logger.logkv('eplenmean', safemean([epinfo['l'] for epinfo in epinfobuf]))
             logger.logkv('time_elapsed', tnow - tfirststart)
-            logger.logkv('learning_rate', lrnow)
+            logger.logkv('lr_mean', lrvals)
             logger.logkv('epscoremean', safemean([epinfo['s'] for epinfo in epinfobuf]))
             for (lossval, lossname) in zip(lossvals, model.loss_names):
                 logger.logkv(lossname, lossval)
