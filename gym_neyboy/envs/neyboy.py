@@ -27,14 +27,14 @@ START_SCREEN = 0
 GAME_SCREEN = 1
 GAME_OVER_SCREEN = 2
 
-EASTER_EGG_APPEARANCE_FREQUENCY = 10
+TOAST_APPEARANCE_FREQUENCY = 10
 
 GameState = namedtuple('GameState',
                        ['game_id', 'id', 'score', 'status', 'hiscore', 'snapshot', 'timestamp', 'dimensions',
                         'position'])
 
 DEFAULT_NAVIGATION_TIMEOUT = 60 * 1000
-DEFAULT_GAME_URL = 'https://fabito.github.io/neyboy/'
+DEFAULT_GAME_URL = 'http://fabito.github.io/neyboy/'
 DEFAULT_BROWSER_WS_ENDPOINT = 'ws://localhost:3000'
 
 
@@ -134,7 +134,17 @@ class Game:
             await self.tap_right()
         else:
             await self.tap_left()
-        # await self.page.click('iframe.sc-htpNat')
+        await self.shuffle_toasts()
+        return self
+
+    async def shuffle_toasts(self):
+        await self.page.evaluate('''() => {
+                const iframe = document.getElementsByTagName("iframe")[0];
+                const iframeWindow = iframe.contentWindow;
+                if (iframeWindow['shuffleToasts']) {
+                    iframeWindow.shuffleToasts();
+                }
+        }''')
         return self
 
     async def pause(self):
@@ -227,6 +237,12 @@ class Game:
             logger.debug('Start screen')
         elif playing_status == GAME_OVER_SCREEN:  # game over
             try:
+
+                # await asyncio.gather(
+                #     self.wait_until_replay_button_is_active(),
+                #     await self.page.mouse.click(400, 525),
+                # )
+
                 await self.wait_until_replay_button_is_active()
                 logger.debug('Replay button active')
                 sleep(0.5)
@@ -258,7 +274,7 @@ class Game:
             return encoded_snapshot.decode('ascii')
 
     @staticmethod
-    def _normalize_angle(position):
+    def normalize_angle(position):
         angle = float(position['angle'])
         if 6.5 > angle >= 4.5:
             angle = max((angle - 6.3) / 1.5, -1)
@@ -312,7 +328,7 @@ class Game:
         state['timestamp'] = dt.datetime.today().timestamp()
 
         position = state['position']
-        self._normalize_angle(position)
+        self.normalize_angle(position)
         state['position'] = position
 
         if include_snapshot is not None:
@@ -389,3 +405,250 @@ class SyncGame:
                game_url=DEFAULT_GAME_URL, browser_ws_endpoint=None) -> 'SyncGame':
         o = sync(Game.create)(headless, user_data_dir, navigation_timeout, game_url, browser_ws_endpoint)
         return SyncGame(o)
+
+
+class GameWrapper:
+
+    def __init__(self, page, game_raw):
+        self.page = page
+        self.id = game_raw['id']
+        self.game_id = str(uuid.uuid4())
+        self.state_id = 0
+        self.state = None
+        self._dims = game_raw['dims']
+
+    async def dimensions(self):
+        dimensions = await self.page.evaluate('''(gameId) => {
+                return NeyboyChallenge.getGame(gameId).dimensions();
+            }''', self.id)
+        return dimensions
+
+    async def start(self):
+        if random.randint(0, 1):
+            await self.tap_right()
+        else:
+            await self.tap_left()
+        await self.shuffle_toasts()
+        return self
+
+    async def shuffle_toasts(self):
+        await self.page.evaluate('''(gameId) => {
+            NeyboyChallenge.getGame(gameId).shuffleToasts();
+        }''', self.id)
+        return self
+
+    def is_over(self):
+        return self.state.status == GAME_OVER_SCREEN
+
+    async def _wait_until_replay_button_is_active(self):
+        await self.resume()
+        await self.page.waitForFunction('''(gameId) => {
+            return NeyboyChallenge.getGame(gameId).isReplayButtonActive();
+        }''')
+
+    async def restart(self):
+        self.game_id = str(uuid.uuid4())
+        self.state_id = 0
+
+        if self.state.status == GAME_SCREEN:
+            # commit suicide
+            while not self.is_over():
+                await self.tap_left()
+                await self.tap_left()
+                await self.tap_left()
+                await self.get_state()
+
+        if self.is_over():
+            await self._wait_until_replay_button_is_active()
+            # sleep(0.5)
+            x = self.x + self.width // 2
+            y = self.y + self.height - self.height // 4
+            await self.page.mouse.click(x, y)
+        elif self.state.status == START_SCREEN:
+            pass
+        else:
+            raise ValueError('Unknown state: {}'.format(self.state.status))
+
+        await self.start()
+
+    @property
+    def x(self):
+        return int(self._dims['x'])
+
+    @property
+    def y(self):
+        return int(self._dims['y'])
+
+    @property
+    def width(self):
+        return int(self._dims['width'])
+
+    @property
+    def height(self):
+        return int(self._dims['height'])
+
+    async def tap_left(self, delay=0):
+        x = self.x + self.width // 4
+        y = self.y + self.height // 3
+        await self.page.mouse.click(x, y, {'delay': delay})
+
+    async def tap_right(self, delay=0):
+        x = (self.x + self.width) - self.width // 4
+        y = self.y + self.height // 3
+        await self.page.mouse.click(x, y, {'delay': delay})
+
+    async def pause(self):
+        await self.page.evaluate('''(gameId) => {
+            NeyboyChallenge.getGame(gameId).pause();
+        }''', self.id)
+
+    async def resume(self):
+        await self.page.evaluate('''(gameId) => {
+            NeyboyChallenge.getGame(gameId).resume();
+        }''', self.id)
+
+    async def get_state(self, include_snapshot='numpy', fmt='image/jpeg', quality=30, crop=True):
+        state = await self.page.evaluate('''(gameId, includeSnapshot, format, quality) => {
+            return NeyboyChallenge.getGame(gameId).state(includeSnapshot, format, quality);
+        }''', self.id, include_snapshot, fmt, quality)
+
+        self.state_id += 1
+
+        state['hiscore'] = int(state['hiscore'])
+        state['score'] = int(state['score'])
+        state['status'] = int(state['status'])
+        state['id'] = self.state_id
+        state['game_id'] = self.game_id
+        state['timestamp'] = dt.datetime.today().timestamp()
+
+        position = state['position']
+        Game.normalize_angle(position)
+        state['position'] = position
+
+        if include_snapshot is not None:
+            dims = state['dimensions']
+            x = 0
+            y = dims['height'] / 2 + 40
+            height = dims['height'] - y - 15
+            width = dims['width']
+            base64_string = state['snapshot']
+            base64_string = re.sub('^data:image/.+;base64,', '', base64_string)
+            imgdata = base64.b64decode(base64_string)
+
+            bytes_io = io.BytesIO(imgdata)
+            image = Image.open(bytes_io)
+
+            if crop:
+                image = image.crop((x, y, x + width, y + height))
+
+            if include_snapshot == 'numpy':
+                state['snapshot'] = np.array(image)
+            elif include_snapshot == 'pil':
+                state['snapshot'] = image
+            elif include_snapshot == 'bytes':
+                state['snapshot'] = bytes_io
+            else:
+                raise ValueError('Supported snapshot formats are: numpy, pil, ascii, bytes')
+
+        self.state = GameState(**state)
+
+        return self.state
+
+    def __repr__(self) -> str:
+        return 'GameWrapper(id={}, dims={})'.format(self.id, self._dims)
+
+
+class SyncGameWrapper:
+
+    def __init__(self, game: GameWrapper):
+        self.game = game
+
+    def __getattr__(self, attr):
+        return sync(getattr(self.game, attr))
+
+    def __repr__(self) -> str:
+        return self.game.__repr__()
+
+
+class CompositeGame:
+    def __init__(self, headless=True, user_data_dir=None, navigation_timeout=DEFAULT_NAVIGATION_TIMEOUT,
+                 game_url=DEFAULT_GAME_URL, browser_ws_endpoint=None):
+        self.headless = headless
+        self.user_data_dir = user_data_dir
+        self.navigation_timeout = navigation_timeout
+        self.is_running = False
+        self.browser = None
+        self.page = None
+        self.state = None
+        self.game_id = str(uuid.uuid4())
+        self.state_id = 0
+        self.game_url = game_url
+        self.browser_ws_endpoint = browser_ws_endpoint
+        self.games = []
+
+    async def initialize(self):
+        if self.browser_ws_endpoint is not None:
+            logger.info('Connecting to running instance at: %s', self.browser_ws_endpoint)
+            self.browser = await connect(browserWSEndpoint=self.browser_ws_endpoint)
+            self.page = await self.browser.newPage()
+        else:
+            logger.info('Launching new browser instance')
+            if self.user_data_dir is not None:
+                self.browser = await launch(headless=self.headless, userDataDir=self.user_data_dir,
+                                            args=['--no-sandbox'])
+            else:
+                self.browser = await launch(headless=self.headless, args=['--no-sandbox'])
+
+            pages = await self.browser.pages()
+            if len(pages) > 0:
+                self.page = pages[0]
+            else:
+                self.page = await self.browser.newPage()
+
+        self.page.setDefaultNavigationTimeout(self.navigation_timeout)
+        await self.page.goto(self.game_url, {'waitUntil': 'networkidle2'})
+
+    @staticmethod
+    @sync
+    async def create(headless=True, user_data_dir=None, navigation_timeout=DEFAULT_NAVIGATION_TIMEOUT,
+                     game_url='http://localhost:8000/mindex.html', browser_ws_endpoint=None) -> 'CompositeGame':
+        o = CompositeGame(headless, user_data_dir, navigation_timeout, game_url, browser_ws_endpoint)
+        await o.initialize()
+        return o
+
+    @sync
+    async def load(self, num_games):
+        game_ids = await self.page.evaluate('''(numGames) => {
+            return NeyboyChallenge.load(document.body, numGames)
+                .then(games =>{
+                    let o = {};               
+                    Object.keys(games).forEach((key,index) => {
+                        let g = games[key];
+                        o[key] = {
+                            id: key,
+                            dims: g.dimensions()
+                        }; 
+                    });
+                    return o;
+                });
+        }''', num_games)
+        games = [SyncGameWrapper(GameWrapper(self.page, game_ids[game_raw])) for game_raw in game_ids.keys()]
+        # FIXME find a nicer way to wait for game loaded
+        sleep(1)
+        self.games.extend(games)
+        return games if num_games > 1 else games[0]
+
+    @sync
+    async def add(self):
+        games = await self.load(1)
+        return games[0]
+
+    @sync
+    async def pause(self):
+        for g in self.games:
+            await g.pause()
+
+    @sync
+    async def resume(self):
+        for g in self.games:
+            await g.resume()

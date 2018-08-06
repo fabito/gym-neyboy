@@ -8,7 +8,7 @@ from gym import spaces, utils, logger
 from gym.utils import seeding
 
 from gym_neyboy.envs.neyboy import SyncGame, ACTION_NAMES, ACTION_LEFT, ACTION_RIGHT, GAME_OVER_SCREEN, \
-    DEFAULT_NAVIGATION_TIMEOUT, DEFAULT_GAME_URL
+    DEFAULT_NAVIGATION_TIMEOUT, DEFAULT_GAME_URL, CompositeGame
 
 
 class NeyboyEnv(gym.Env, utils.EzPickle):
@@ -34,18 +34,19 @@ class NeyboyEnv(gym.Env, utils.EzPickle):
         game_url = os.environ.get('GYM_NEYBOY_GAME_URL', DEFAULT_GAME_URL)
         browser_ws_endpoint = os.environ.get('GYM_NEYBOY_BROWSER_WS_ENDPOINT', None)
 
+        self._create_game(browser_ws_endpoint, game_url, headless, navigation_timeout, user_data_dir)
+        self._update_state()
+        self.observation_space = spaces.Box(low=0, high=255, shape=self.state.snapshot.shape, dtype=np.uint8)
+        self.action_space = spaces.Discrete(len(ACTION_NAMES))
+
+    def _create_game(self, browser_ws_endpoint, game_url, headless, navigation_timeout, user_data_dir):
         if browser_ws_endpoint is not None:
-            self.game = SyncGame.create(navigation_timeout=navigation_timeout, game_url=game_url, browser_ws_endpoint=browser_ws_endpoint)
+            self.game = SyncGame.create(navigation_timeout=navigation_timeout, game_url=game_url,
+                                        browser_ws_endpoint=browser_ws_endpoint)
         else:
             self.game = SyncGame.create(headless=headless, user_data_dir=user_data_dir,
                                         navigation_timeout=navigation_timeout, game_url=game_url)
-
         self.game.load()
-        self._update_state()
-
-        dims = self.state.dimensions
-        self.observation_space = spaces.Box(low=0, high=255, shape=(270, 450, 3), dtype=np.uint8)
-        self.action_space = spaces.Discrete(len(ACTION_NAMES))
 
     @property
     def state(self):
@@ -117,6 +118,28 @@ class NeyboyEnv(gym.Env, utils.EzPickle):
 
     def seed(self, seed=None):
         self.np_random, seed1 = seeding.np_random(seed)
+
+
+class NeyboyEnvSingleBrowser(NeyboyEnv):
+    game_instance = None
+
+    def __init__(self, headless=None, score_threshold=0.95, death_reward=-1, stay_alive_reward=0.1, user_data_dir=None):
+        super().__init__(headless, score_threshold, death_reward, stay_alive_reward, user_data_dir)
+
+    def _create_game(self, browser_ws_endpoint, game_url, headless, navigation_timeout, user_data_dir):
+
+        if not game_url.endswith('mindex.html'):
+            game_url += 'mindex.html' if game_url.endswith('/') else '/mindex.html'
+
+        if not NeyboyEnvSingleBrowser.game_instance:
+            if browser_ws_endpoint is not None:
+                NeyboyEnvSingleBrowser.game_instance = CompositeGame.create(navigation_timeout=navigation_timeout, game_url=game_url,
+                                            browser_ws_endpoint=browser_ws_endpoint)
+            else:
+                NeyboyEnvSingleBrowser.game_instance = CompositeGame.create(headless=headless, user_data_dir=user_data_dir,
+                                            navigation_timeout=navigation_timeout, game_url=game_url)
+
+        self.game = NeyboyEnvSingleBrowser.game_instance.load(1)
 
 
 class NeyboyEnvAngle(NeyboyEnv):

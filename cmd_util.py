@@ -4,22 +4,25 @@ import gym
 from baselines import logger
 from baselines.bench import Monitor
 from baselines.common import set_global_seeds
-from baselines.common.atari_wrappers import MaxAndSkipEnv, wrap_deepmind
+from baselines.common.atari_wrappers import MaxAndSkipEnv, WarpFrame
 from baselines.common.cmd_util import arg_parser
 from baselines.common.vec_env.subproc_vec_env import SubprocVecEnv
 
 import gym_neyboy
+from neyboy_wrappers import ObservationSaver
 
 
-def make_neyboy_environment(env_id, seed=0, rank=0, allow_early_resets=False, frame_skip=4):
+def make_neyboy_environment(env_id, seed=0, rank=0, allow_early_resets=False, frame_skip=4, save_obs=False):
     env = gym.make(env_id)
     env = MaxAndSkipEnv(env, skip=frame_skip)
+    # if save_obs:
+    #     env = ObservationSaver(env, stage_name='max_skip')
     env.seed(seed + rank)
     env = Monitor(env, logger.get_dir() and os.path.join(logger.get_dir(), str(rank)), allow_early_resets=allow_early_resets)
     return env
 
 
-def make_neyboy_env(env_id, num_env, seed, wrapper_kwargs=None, start_index=0, allow_early_resets=False, frame_skip=4):
+def make_neyboy_env(env_id, num_env, seed, wrapper_kwargs=None, start_index=0, allow_early_resets=False, frame_skip=4, save_obs=False):
     """
     Create a wrapped, monitored SubprocVecEnv for Neyboy.
     """
@@ -28,8 +31,11 @@ def make_neyboy_env(env_id, num_env, seed, wrapper_kwargs=None, start_index=0, a
 
     def make_env(rank):
         def _thunk():
-            env = make_neyboy_environment(env_id, seed, rank, allow_early_resets, frame_skip=frame_skip)
-            return wrap_deepmind(env, episode_life=False, clip_rewards=False)
+            env = make_neyboy_environment(env_id, seed, rank, allow_early_resets, frame_skip=frame_skip, save_obs=save_obs)
+            env = WarpFrame(env)
+            # if save_obs:
+            #     env = ObservationSaver(env, stage_name='warp')
+            return env
         return _thunk
 
     set_global_seeds(seed)

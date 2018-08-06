@@ -6,5 +6,9 @@ register(
 )
 register(
     id='neyboy-v1',
+    entry_point='gym_neyboy.envs:NeyboyEnvSingleBrowser',
+)
+register(
+    id='neyboy-v2',
     entry_point='gym_neyboy.envs:NeyboyEnvAngle',
 )
