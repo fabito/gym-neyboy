@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 import multiprocessing
 import sys
+from time import sleep
+
 
 import tensorflow as tf
 from baselines import logger
@@ -42,7 +44,7 @@ def train(env_id, seed, policy, load_path, num_episodes, frame_skip, no_render):
             action, _, _, _ = model.step(observation)
             observation, reward, done, info = env.step(action)
             print(reward, done, info)
-
+        sleep(1)
 
 def main():
     parser = neyboy_arg_parser()

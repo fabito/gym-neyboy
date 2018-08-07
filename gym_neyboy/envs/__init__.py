@@ -1,1 +1,1 @@
-from gym_neyboy.envs.neyboy_env import NeyboyEnv, NeyboyEnvAngle, NeyboyEnvSingleBrowser
+from gym_neyboy.envs.neyboy_env import NeyboyEnv, NeyboyEnvAngle, NeyboyEnvSingleBrowser, NeyboyEnvFrameless

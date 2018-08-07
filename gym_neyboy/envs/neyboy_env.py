@@ -8,7 +8,7 @@ from gym import spaces, utils, logger
 from gym.utils import seeding
 
 from gym_neyboy.envs.neyboy import SyncGame, ACTION_NAMES, ACTION_LEFT, ACTION_RIGHT, GAME_OVER_SCREEN, \
-    DEFAULT_NAVIGATION_TIMEOUT, DEFAULT_GAME_URL, CompositeGame
+    DEFAULT_NAVIGATION_TIMEOUT, DEFAULT_GAME_URL, CompositeGame, SyncFrameLessGame
 
 
 class NeyboyEnv(gym.Env, utils.EzPickle):
@@ -28,7 +28,7 @@ class NeyboyEnv(gym.Env, utils.EzPickle):
         self._state = None
         self.viewer = None
 
-        self.reward_strategy = os.environ.get('GYM_NEYBOY_REWARD_STRATEGY', 'cosine')
+        self.reward_strategy = os.environ.get('GYM_NEYBOY_REWARD_STRATEGY', 'cosine_thresh')
 
         navigation_timeout = int(os.environ.get('GYM_NEYBOY_ENV_TIMEOUT', DEFAULT_NAVIGATION_TIMEOUT))
         game_url = os.environ.get('GYM_NEYBOY_GAME_URL', DEFAULT_GAME_URL)
@@ -140,6 +140,21 @@ class NeyboyEnvSingleBrowser(NeyboyEnv):
                                             navigation_timeout=navigation_timeout, game_url=game_url)
 
         self.game = NeyboyEnvSingleBrowser.game_instance.load(1)
+
+
+class NeyboyEnvFrameless(NeyboyEnv):
+
+    def __init__(self, headless=None, score_threshold=0.95, death_reward=-1, stay_alive_reward=0.1, user_data_dir=None):
+        super().__init__(headless, score_threshold, death_reward, stay_alive_reward, user_data_dir)
+
+    def _create_game(self, browser_ws_endpoint, game_url, headless, navigation_timeout, user_data_dir):
+
+        if browser_ws_endpoint is not None:
+            self.game = SyncFrameLessGame.create(navigation_timeout=navigation_timeout, game_url=game_url,
+                                        browser_ws_endpoint=browser_ws_endpoint)
+        else:
+            self.game = SyncFrameLessGame.create(headless=headless, user_data_dir=user_data_dir,
+                                        navigation_timeout=navigation_timeout, game_url=game_url)
 
 
 class NeyboyEnvAngle(NeyboyEnv):

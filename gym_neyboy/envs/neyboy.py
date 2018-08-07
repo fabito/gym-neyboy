@@ -36,7 +36,7 @@ GameState = namedtuple('GameState',
 DEFAULT_NAVIGATION_TIMEOUT = 60 * 1000
 DEFAULT_GAME_URL = 'http://fabito.github.io/neyboy/'
 DEFAULT_BROWSER_WS_ENDPOINT = 'ws://localhost:3000'
-
+DEFAULT_CHROMIUM_LAUNCH_ARGS = ['--no-sandbox', '--window-size=80,315', '--disable-infobars']
 
 class Game:
 
@@ -63,9 +63,9 @@ class Game:
             logger.info('Launching new browser instance')
             if self.user_data_dir is not None:
                 self.browser = await launch(headless=self.headless, userDataDir=self.user_data_dir,
-                                            args=['--no-sandbox'])
+                                            args=DEFAULT_CHROMIUM_LAUNCH_ARGS)
             else:
-                self.browser = await launch(headless=self.headless, args=['--no-sandbox'])
+                self.browser = await launch(headless=self.headless, args=DEFAULT_CHROMIUM_LAUNCH_ARGS)
 
             pages = await self.browser.pages()
             if len(pages) > 0:
@@ -82,6 +82,22 @@ class Game:
         await o.initialize()
         return o
 
+    @property
+    def x(self):
+        return int(self._dims['x'])
+
+    @property
+    def y(self):
+        return int(self._dims['y'])
+
+    @property
+    def width(self):
+        return int(self._dims['width'])
+
+    @property
+    def height(self):
+        return int(self._dims['height'])
+
     async def dimensions(self):
         # Get dimensions of the canvas element
         dimensions = await self.page.evaluate('''() => {
@@ -95,8 +111,12 @@ class Game:
         await self.page.waitForFunction('''() => {
             const iframe = document.getElementsByTagName("iframe")[0];
             const iframeWindow = iframe.contentWindow;
-            return iframeWindow.cr_getC2Runtime !== undefined &&
-                   iframeWindow.cr_getC2Runtime().tickcount > 200;
+            if (iframeWindow.cr_getC2Runtime !== undefined) {
+                let touchToStartText = iframeWindow.cr_getC2Runtime().getObjectByUID(6);
+                if (touchToStartText)
+                    return touchToStartText.visible;
+            }
+            return false;     
         }''')
 
     async def is_over(self):
@@ -125,6 +145,7 @@ class Game:
         return animation_name
 
     async def load(self):
+        await self.page.setViewport(dict(width=117, height=156))
         await self.page.goto(self.game_url, {'waitUntil': 'networkidle2'})
         await self.is_loaded()
         return self
@@ -181,7 +202,7 @@ class Game:
                 return iframeWindow.cr_getC2Runtime !== undefined &&
                        iframeWindow.cr_getC2Runtime().getEventVariableByName('hiscore').data;
                 }''')
-        return int(hiscore) if hiscore else 1
+        return int(hiscore) if hiscore else 1       
 
     async def get_scores(self):
         scores = await self.page.evaluate('''() => {
@@ -196,15 +217,15 @@ class Game:
         scores['hiscore'] = int(scores['hiscore'])
         return scores
 
-    async def tap_right(self, delay=0):
-        await self.page.mouse.click(470, 500, {'delay': delay})
-        # FIXME Investigate why pressing arrow keys aren't working
-        # await self.page.keyboard.press('ArrowRight', {'text': 'd', 'delay': delay})
-        # await self.page.keyboard.press("d", {'text': 'd', 'delay': delay})
-
     async def tap_left(self, delay=0):
-        await self.page.mouse.click(200, 500, {'delay': delay})
-        # await self.page.keyboard.press('ArrowLeft', {'text': 'a', 'delay': delay})
+        x = self.x + self.width // 4
+        y = self.y + self.height // 3
+        await self.page.mouse.click(x, y, {'delay': delay})
+
+    async def tap_right(self, delay=0):
+        x = (self.x + self.width) - self.width // 4
+        y = self.y + self.height // 3
+        await self.page.mouse.click(x, y, {'delay': delay})
 
     async def stop(self):
         await self.browser.close()
@@ -246,7 +267,10 @@ class Game:
                 await self.wait_until_replay_button_is_active()
                 logger.debug('Replay button active')
                 sleep(0.5)
-                await self.page.mouse.click(400, 525)
+                # await self.page.mouse.click(400, 525)
+                x = self.x + self.width // 2
+                y = self.y + self.height - self.height // 4
+                await self.page.mouse.click(x, y)                
             except errors.TimeoutError:
                 logger.warn('Timeout while waiting for replay button')
                 await self._hard_restart()
@@ -320,6 +344,7 @@ class Game:
             })
         }''', include_snapshot, fmt, quality)
 
+        self._dims = state['dimensions']
         state['hiscore'] = int(state['hiscore'])
         state['score'] = int(state['score'])
         state['status'] = int(state['status'])
@@ -332,11 +357,10 @@ class Game:
         state['position'] = position
 
         if include_snapshot is not None:
-            dims = state['dimensions']
             x = 0
-            y = dims['height'] / 2
-            height = dims['height'] - y - 30
-            width = dims['width']
+            y = self.height / 2
+            height = self.height - y - (self.height - y) * 0.15 
+            width = self.width
             base64_string = state['snapshot']
             base64_string = re.sub('^data:image/.+;base64,', '', base64_string)
             imgdata = base64.b64decode(base64_string)
@@ -444,7 +468,7 @@ class GameWrapper:
         await self.resume()
         await self.page.waitForFunction('''(gameId) => {
             return NeyboyChallenge.getGame(gameId).isReplayButtonActive();
-        }''')
+        }''', self.id)
 
     async def restart(self):
         self.game_id = str(uuid.uuid4())
@@ -652,3 +676,225 @@ class CompositeGame:
     async def resume(self):
         for g in self.games:
             await g.resume()
+
+
+FRAMELESS_DEFAULT_GAME_URL = DEFAULT_GAME_URL+'game/mindex.html' 
+class FrameLessGame:
+
+    def __init__(self, headless=True, user_data_dir=None, navigation_timeout=DEFAULT_NAVIGATION_TIMEOUT,
+                 game_url=FRAMELESS_DEFAULT_GAME_URL, browser_ws_endpoint=None, initial_width=180, initial_height=320):
+
+        self.initial_width = initial_width
+        self.initial_height = initial_height
+        self.headless = headless
+        self.user_data_dir = user_data_dir
+        self.navigation_timeout = navigation_timeout
+        self.is_running = False
+        self.browser = None
+        self.page = None
+        self.state = None
+        self.game_id = str(uuid.uuid4())
+        self.state_id = 0
+        self.game_url = game_url
+        self.browser_ws_endpoint = browser_ws_endpoint
+        # self._dims = game_raw['dims']
+
+
+    async def initialize(self):
+        if self.browser_ws_endpoint is not None:
+            logger.info('Connecting to running instance at: %s', self.browser_ws_endpoint)
+            self.browser = await connect(browserWSEndpoint=self.browser_ws_endpoint)
+            self.page = await self.browser.newPage()
+        else:
+            logger.info('Launching new browser instance')
+            if self.user_data_dir is not None:
+                self.browser = await launch(headless=self.headless, userDataDir=self.user_data_dir,
+                                            args=DEFAULT_CHROMIUM_LAUNCH_ARGS)
+            else:
+                self.browser = await launch(headless=self.headless, args=DEFAULT_CHROMIUM_LAUNCH_ARGS)
+
+            pages = await self.browser.pages()
+            if len(pages) > 0:
+                self.page = pages[0]
+            else:
+                self.page = await self.browser.newPage()
+
+        self.page.setDefaultNavigationTimeout(self.navigation_timeout)
+        await self.page.setViewport(dict(width=117, height=156))
+        await self.page.goto('{}?w={}&h={}'.format(self.game_url, self.initial_width, self.initial_height), {'waitUntil': 'networkidle2'})
+        await self.is_ready()
+
+    @staticmethod
+    async def create(headless=True, user_data_dir=None, navigation_timeout=DEFAULT_NAVIGATION_TIMEOUT,
+                     game_url=FRAMELESS_DEFAULT_GAME_URL, browser_ws_endpoint=None, initial_width=180, initial_height=320) -> 'FrameLessGame':
+        o = FrameLessGame(headless, user_data_dir, navigation_timeout, game_url, browser_ws_endpoint, initial_width, initial_height)
+        await o.initialize()
+        return o
+
+    @property
+    def x(self):
+        return int(self._dims['x'])
+
+    @property
+    def y(self):
+        return int(self._dims['y'])
+
+    @property
+    def width(self):
+        return int(self._dims['width'])
+
+    @property
+    def height(self):
+        return int(self._dims['height'])
+
+    async def dimensions(self):
+        dimensions = await self.page.evaluate('''() => {
+                return neyboyChallenge.dimensions();
+            }''')
+        return dimensions
+
+    async def is_ready(self):
+        await self.page.waitForFunction('''()=>{
+            return neyboyChallenge && neyboyChallenge.isReady();
+        }''')
+
+    async def load(self):
+        await self.page.goto(self.game_url, {'waitUntil': 'networkidle2'})
+        await self.is_ready()
+        return self
+
+    async def start(self):
+        if random.randint(0, 1):
+            await self.tap_right()
+        else:
+            await self.tap_left()
+        await self._shuffle_toasts()
+        return self
+
+    async def _shuffle_toasts(self):
+        await self.page.evaluate('''() => {
+            neyboyChallenge.shuffleToasts();
+        }''')
+        return self
+
+    def is_over(self):
+        return self.state.status == GAME_OVER_SCREEN
+
+    async def _wait_until_replay_button_is_active(self):
+        await self.resume()
+        await self.page.waitForFunction('''() => {
+            return neyboyChallenge.isOver();
+        }''')
+
+    async def restart(self):
+        self.game_id = str(uuid.uuid4())
+        self.state_id = 0
+
+        if self.state.status == GAME_SCREEN:
+            # commit suicide
+
+            while not self.is_over():
+                logger.debug('suiciding')
+                await self.tap_left()
+                await self.tap_left()
+                await self.tap_left()
+                await self.get_state()
+
+        if self.is_over():
+            await self._wait_until_replay_button_is_active()
+            x = self.x + self.width // 2
+            y = self.y + self.height - self.height // 7
+            await self.page.mouse.click(x, y)
+        elif self.state.status == START_SCREEN:
+            logger.debug('start screen')
+        else:
+            raise ValueError('Unknown state: {}'.format(self.state.status))
+
+        await self.start()
+
+    async def tap_left(self, delay=0):
+        x = self.x + self.width // 4
+        y = self.y + self.height // 3
+        await self.page.mouse.click(x, y, {'delay': delay})
+
+    async def tap_right(self, delay=0):
+        x = (self.x + self.width) - self.width // 4
+        y = self.y + self.height // 3
+        await self.page.mouse.click(x, y, {'delay': delay})
+
+    async def pause(self):
+        await self.page.evaluate('''() => {
+            neyboyChallenge.pause();
+        }''')
+
+    async def resume(self):
+        await self.page.evaluate('''() => {
+            neyboyChallenge.resume();
+        }''')
+
+    async def get_state(self, include_snapshot='numpy', fmt='image/jpeg', quality=30, crop=True):
+        state = await self.page.evaluate('''(includeSnapshot, format, quality) => {
+            return neyboyChallenge.state(includeSnapshot, format, quality);
+        }''', include_snapshot, fmt, quality)
+
+        self.state_id += 1
+        self._dims = state['dimensions']
+        state['hiscore'] = int(state['hiscore'])
+        state['score'] = int(state['score'])
+        state['status'] = int(state['status'])
+        state['id'] = self.state_id
+        state['game_id'] = self.game_id
+        state['timestamp'] = dt.datetime.today().timestamp()
+
+        position = state['position']
+        Game.normalize_angle(position)
+        state['position'] = position
+
+        if include_snapshot is not None:
+            x = 0
+            y = self.height / 2
+            height = self.height - y - (self.height - y) * 0.15 
+            width = self.width
+            base64_string = state['snapshot']
+            base64_string = re.sub('^data:image/.+;base64,', '', base64_string)
+            imgdata = base64.b64decode(base64_string)
+
+            bytes_io = io.BytesIO(imgdata)
+            image = Image.open(bytes_io)
+
+            if crop:
+                image = image.crop((x, y, x + width, y + height))
+
+            if include_snapshot == 'numpy':
+                state['snapshot'] = np.array(image)
+            elif include_snapshot == 'pil':
+                state['snapshot'] = image
+            elif include_snapshot == 'bytes':
+                state['snapshot'] = bytes_io
+            else:
+                raise ValueError('Supported snapshot formats are: numpy, pil, ascii, bytes')
+
+        self.state = GameState(**state)
+
+        return self.state
+
+    def __repr__(self) -> str:
+        return 'FrameLessGame(id={}, dims={})'.format(self.id, self._dims)
+
+
+class SyncFrameLessGame:
+
+    def __init__(self, game: FrameLessGame):
+        self.game = game
+
+    def __getattr__(self, attr):
+        return sync(getattr(self.game, attr))
+
+    def __repr__(self) -> str:
+        return self.game.__repr__()
+
+    @staticmethod
+    def create(headless=True, user_data_dir=None, navigation_timeout=DEFAULT_NAVIGATION_TIMEOUT,
+               game_url=FRAMELESS_DEFAULT_GAME_URL, browser_ws_endpoint=None, initial_width=180, initial_height=320) -> 'SyncFrameLessGame':
+        o = sync(FrameLessGame.create)(headless, user_data_dir, navigation_timeout, game_url, browser_ws_endpoint, initial_width, initial_height)
+        return SyncFrameLessGame(o)        

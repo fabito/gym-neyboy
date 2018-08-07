@@ -15,10 +15,7 @@ from neyboy_wrappers import ObservationSaver,  ObservationSaver2, ObservationSav
 def main(screen, args):
     game_id = str(uuid.uuid4())
     logger.configure('.tmp/{}/{}_'.format(args.frame_skip, game_id))
-    env = gym.make('neyboy-v1')
-    env2 = gym.make('neyboy-v1')
-    env3 = gym.make('neyboy-v1')
-    env4 = gym.make('neyboy-v1')
+    env = gym.make(args.env)
     env = MaxAndSkipEnv(env, skip=args.frame_skip)
     env = ObservationSaver(env, stage_name='max_skip')
     # env = VerticallyFlipFrame(env)
@@ -26,7 +23,7 @@ def main(screen, args):
     # env = ScaledFloatFrame(env)
     # env = ObservationSaver3(env, stage_name='scaled')
 
-    env.reset()
+    # env.reset()
     done = False
     total_reward = 0
     total_steps = 0
@@ -48,6 +45,7 @@ def main(screen, args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
+    parser.add_argument('--env', help='environment ID', default='neyboy-v0')
     parser.add_argument('--frame-skip', type=int, default=4)
     args = parser.parse_args()
     Screen.wrapper(main, arguments=[args])
