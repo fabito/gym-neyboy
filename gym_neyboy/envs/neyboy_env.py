@@ -38,7 +38,10 @@ class NeyboyEnv(gym.Env, utils.EzPickle):
 
         self._create_game(browser_ws_endpoint, game_url, headless, navigation_timeout, user_data_dir)
         self._update_state()
-        self.observation_space = spaces.Box(low=0, high=255, shape=self.state.snapshot.shape, dtype=np.uint8)
+
+        shape = () if self.obs_for_terminal else self.state.snapshot.shape
+
+        self.observation_space = spaces.Box(low=0, high=255, shape=shape, dtype=np.uint8)
         self.action_space = spaces.Discrete(len(ACTION_NAMES))
 
     def _create_game(self, browser_ws_endpoint, game_url, headless, navigation_timeout, user_data_dir):
