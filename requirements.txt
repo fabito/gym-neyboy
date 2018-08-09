@@ -1,10 +1,5 @@
-tensorflow-gpu
 syncer
 Pillow
 pyppeteer
 gym
-git+https://github.com/fabito/baselines.git#egg=baselines[tf_gpu]
-pytest
-matplotlib
-pandas
 asciimatics

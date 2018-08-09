@@ -11,12 +11,11 @@ import random
 import re
 import uuid
 from collections import namedtuple
-from time import sleep
 
 import pathlib
 import numpy as np
 from PIL import Image
-from pyppeteer import launch, errors, connect
+from pyppeteer import launch, connect
 from syncer import sync
 
 ACTION_NAMES = ["NOOP", "LEFT", "RIGHT"]
