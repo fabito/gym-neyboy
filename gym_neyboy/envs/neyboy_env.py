@@ -8,13 +8,13 @@ from gym import spaces, utils, logger
 from gym.utils import seeding
 
 from gym_neyboy.envs.neyboy import SyncGame, ACTION_NAMES, ACTION_LEFT, ACTION_RIGHT, GAME_OVER_SCREEN, \
-    DEFAULT_NAVIGATION_TIMEOUT, DEFAULT_GAME_URL, CompositeGame, SyncFrameLessGame
+    DEFAULT_NAVIGATION_TIMEOUT, DEFAULT_GAME_URL
 
 
 class NeyboyEnv(gym.Env, utils.EzPickle):
     metadata = {'render.modes': ['human', 'rgb_array']}
 
-    def __init__(self, headless=None, score_threshold=0.965, death_reward=-1, stay_alive_reward=0.1, user_data_dir=None):
+    def __init__(self, headless=None, score_threshold=0.975, death_reward=-1, stay_alive_reward=0.1, user_data_dir=None):
         utils.EzPickle.__init__(self, headless, score_threshold, death_reward)
 
         if headless is None:
@@ -46,7 +46,6 @@ class NeyboyEnv(gym.Env, utils.EzPickle):
         else:
             self.game = SyncGame.create(headless=headless, user_data_dir=user_data_dir,
                                         navigation_timeout=navigation_timeout, game_url=game_url)
-        self.game.load()
 
     @property
     def state(self):
@@ -80,14 +79,13 @@ class NeyboyEnv(gym.Env, utils.EzPickle):
             else:
                 raise ValueError('Invalid reward strategy: {}'.format(self.reward_strategy))    
     
-        logger.debug('HiScore: {}, Score: {}, Action: {}, position_label: {}, Reward: {}, GameOver: {}'.format(
+        logger.debug('HiScore: {}, Score: {}, Action: {}, Reward: {}, GameOver: {}'.format(
             self.state.hiscore,
             self.state.score,
             ACTION_NAMES[a],
-            self.state.position['name'],
             reward,
             is_over))
-        return self._get_obs(), reward, is_over, dict(score=self.state.score, hiscore=self.state.score, position=self.state.position['angle'])
+        return self._get_obs(), reward, is_over, dict(score=self.state.score, hiscore=self.state.hiscore, position=self.state.position['angle'])
 
     def _get_obs(self):
         return self.state.snapshot
@@ -118,43 +116,6 @@ class NeyboyEnv(gym.Env, utils.EzPickle):
 
     def seed(self, seed=None):
         self.np_random, seed1 = seeding.np_random(seed)
-
-
-class NeyboyEnvSingleBrowser(NeyboyEnv):
-    game_instance = None
-
-    def __init__(self, headless=None, score_threshold=0.95, death_reward=-1, stay_alive_reward=0.1, user_data_dir=None):
-        super().__init__(headless, score_threshold, death_reward, stay_alive_reward, user_data_dir)
-
-    def _create_game(self, browser_ws_endpoint, game_url, headless, navigation_timeout, user_data_dir):
-
-        if not game_url.endswith('mindex.html'):
-            game_url += 'mindex.html' if game_url.endswith('/') else '/mindex.html'
-
-        if not NeyboyEnvSingleBrowser.game_instance:
-            if browser_ws_endpoint is not None:
-                NeyboyEnvSingleBrowser.game_instance = CompositeGame.create(navigation_timeout=navigation_timeout, game_url=game_url,
-                                            browser_ws_endpoint=browser_ws_endpoint)
-            else:
-                NeyboyEnvSingleBrowser.game_instance = CompositeGame.create(headless=headless, user_data_dir=user_data_dir,
-                                            navigation_timeout=navigation_timeout, game_url=game_url)
-
-        self.game = NeyboyEnvSingleBrowser.game_instance.load(1)
-
-
-class NeyboyEnvFrameless(NeyboyEnv):
-
-    def __init__(self, headless=None, score_threshold=0.95, death_reward=-1, stay_alive_reward=0.1, user_data_dir=None):
-        super().__init__(headless, score_threshold, death_reward, stay_alive_reward, user_data_dir)
-
-    def _create_game(self, browser_ws_endpoint, game_url, headless, navigation_timeout, user_data_dir):
-
-        if browser_ws_endpoint is not None:
-            self.game = SyncFrameLessGame.create(navigation_timeout=navigation_timeout, game_url=game_url,
-                                        browser_ws_endpoint=browser_ws_endpoint)
-        else:
-            self.game = SyncFrameLessGame.create(headless=headless, user_data_dir=user_data_dir,
-                                        navigation_timeout=navigation_timeout, game_url=game_url)
 
 
 class NeyboyEnvAngle(NeyboyEnv):

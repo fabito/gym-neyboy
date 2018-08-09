@@ -8,13 +8,22 @@ import numpy as np
 import tensorflow as tf
 from baselines import logger
 from baselines.common.vec_env.vec_frame_stack import VecFrameStack
+from syncer import sync
+
 import ppo2
 from baselines.ppo2.policies import CnnPolicy, LstmPolicy, LnLstmPolicy, MlpPolicy
-
+from pyppeteer import launch
 from cmd_util import neyboy_arg_parser, make_neyboy_env
 
 
 def train(env_id, learning_rate, max_learning_rate, num_epoch, buffer_size, batch_size, num_timesteps, num_workers, seed, policy, load_path, frame_skip):
+
+    # browser = sync(launch(headless=False, args=['--no-sandbox']))
+    # pages = sync(browser.pages())
+    # page = pages[0]
+    # sync(page.goto('http://localhost:8000/mindex.html', {'waitUntil': 'networkidle2'}))
+    # os.environ["GYM_NEYBOY_BROWSER_WS_ENDPOINT"] = browser.wsEndpoint
+
     ncpu = multiprocessing.cpu_count()
     if sys.platform == 'darwin':
         ncpu //= 2

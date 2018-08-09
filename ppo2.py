@@ -160,7 +160,7 @@ def constfn(val):
 def learn(*, policy, env, nsteps, total_timesteps, ent_coef, lr,
           vf_coef=0.5, max_grad_norm=0.5, gamma=0.99, lam=0.95,
           log_interval=10, nminibatches=4, noptepochs=4, cliprange=0.2,
-          save_interval=0, load_path=None):
+          save_interval=0, load_path=None, callback=None):
     if isinstance(lr, float):
         lr = constfn(lr)
     else:
@@ -195,6 +195,12 @@ def learn(*, policy, env, nsteps, total_timesteps, ent_coef, lr,
 
     nupdates = total_timesteps // nbatch
     for update in range(1, nupdates + 1):
+
+        if callback is not None:
+            if callback(locals(), globals()):
+                break
+
+
         assert nbatch % nminibatches == 0
         nbatch_train = nbatch // nminibatches
         tstart = time.time()
@@ -209,7 +215,7 @@ def learn(*, policy, env, nsteps, total_timesteps, ent_coef, lr,
             inds = np.arange(nbatch)
             for iteration in range(noptepochs):
                 np.random.shuffle(inds)
-                lrnow = lr(frac, iteration + 1)
+                lrnow = lr(frac, iteration)
                 logger.info('lrnow={} (frac={},iteration={})'.format(lrnow, frac, iteration))
                 mblrvals.append(lrnow)
                 for start in range(0, nbatch, nbatch_train):
@@ -225,7 +231,7 @@ def learn(*, policy, env, nsteps, total_timesteps, ent_coef, lr,
             envsperbatch = nbatch_train // nsteps
             for iteration in range(noptepochs):
                 np.random.shuffle(envinds)
-                lrnow = lr(frac, iteration + 1)
+                lrnow = lr(frac, iteration)
                 for start in range(0, nenvs, envsperbatch):
                     end = start + envsperbatch
                     mbenvinds = envinds[start:end]

@@ -43,7 +43,7 @@ def train(env_id, seed, policy, load_path, num_episodes, frame_skip, no_render):
                 env.render()
             action, _, _, _ = model.step(observation)
             observation, reward, done, info = env.step(action)
-            print(reward, done, info)
+        print(reward, done, info)    
         sleep(1)
 
 def main():
