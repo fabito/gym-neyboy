@@ -30,6 +30,8 @@ class NeyboyEnv(gym.Env, utils.EzPickle):
 
         self.reward_strategy = os.environ.get('GYM_NEYBOY_REWARD_STRATEGY', 'cosine_thresh')
 
+        self.obs_for_terminal = os.environ.get('GYM_NEYBOY_OBS_AS_BYTES', None) is not None
+
         navigation_timeout = int(os.environ.get('GYM_NEYBOY_ENV_TIMEOUT', DEFAULT_NAVIGATION_TIMEOUT))
         game_url = os.environ.get('GYM_NEYBOY_GAME_URL', DEFAULT_GAME_URL)
         browser_ws_endpoint = os.environ.get('GYM_NEYBOY_BROWSER_WS_ENDPOINT', None)
@@ -52,7 +54,10 @@ class NeyboyEnv(gym.Env, utils.EzPickle):
         return self._state
 
     def _update_state(self):
-        self._state = self.game.get_state()
+        if self.obs_for_terminal:
+            self._state = self.game.get_state(include_snapshot='bytes', crop=False)
+        else:
+            self._state = self.game.get_state()
 
     def step(self, a):
         self.game.resume()
