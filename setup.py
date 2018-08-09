@@ -7,7 +7,7 @@ if sys.version_info.major != 3:
 
 setup(name='gym_neyboy',
       version='0.0.1',
-      package_data={'gym_neyboy': ['env/*.js']},
+      package_data={'gym_neyboy': ['envs/*.js']},
            packages=[package for package in find_packages()],
       extras_require={
             "terminal": ["asciimatics"],
