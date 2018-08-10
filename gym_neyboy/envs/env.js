@@ -47,8 +47,10 @@ class NeyboyChallenge {
 
 	shuffleToasts() {
 		let anim = this.runtime.getObjectByUID(26);
-		let frames = anim.cur_animation.frames;
-		anim.cur_animation.frames = frames.map((a) => [Math.random(),a]).sort((a,b) => a[0]-b[0]).map((a) => a[1]);
+		if (anim) {
+            let frames = anim.cur_animation.frames;
+            anim.cur_animation.frames = frames.map((a) => [Math.random(),a]).sort((a,b) => a[0]-b[0]).map((a) => a[1]);
+        }
 	}
 
 	pause() {
@@ -97,15 +99,15 @@ class NeyboyChallenge {
 
 	async state(includeSnapshot=true, format='image/jpeg', quality=30) {
         return new Promise((resolve, reject) => {
-            const dimensions = this.dimensions()
+            const dimensions = this.dimensions();
             const score = this.getScore();
             const hiscore = this.runtime.getEventVariableByName('hiscore').data || 0;
-            const position = this.getPosition()                
+            const position = this.getPosition();
             const status = this.status();
             if (includeSnapshot) {
                 this.ctx['cr_onSnapshot'] = function(snapshot) {
                     resolve({score, hiscore, snapshot, status, dimensions, position});
-                }
+                };
                 this.ctx.cr_getSnapshot(format, quality);
             } else {
                 const snapshot = null;
@@ -113,7 +115,7 @@ class NeyboyChallenge {
             }
         })
     }			
-};
+}
 
 
 function getParameterByName(name, url) {
@@ -124,7 +126,7 @@ function getParameterByName(name, url) {
     if (!results) return null;
     if (!results[2]) return '';
     return decodeURIComponent(results[2].replace(/\+/g, ' '));
-};
+}
 
 let width = getParameterByName('w') || 180;
 let height = getParameterByName('h') || 320;

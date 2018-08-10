@@ -9,7 +9,8 @@ This is an openai gym environment for the HTML5 game: [Neyboy Challenge](https:/
 
 
 Maximize your score in the [Neyboy Challenge](https://neyboy.com.br).
-In this environment, the observation is an RGB image of the screen, which is an array of shape (156, 117, 3)
+In this environment, the observation is an RGB image of the screen, which is an array of shape (156, 117, 3).
+
 There are only 3 possible actions:
 
 * 0 - Noop
