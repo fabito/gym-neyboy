@@ -38,6 +38,7 @@ DEFAULT_GAME_URL = 'http://fabito.github.io/neyboy/'
 DEFAULT_BROWSER_WS_ENDPOINT = 'ws://localhost:3000'
 DEFAULT_CHROMIUM_LAUNCH_ARGS = ['--no-sandbox', '--window-size=80,315', '--disable-infobars']
 
+
 class Game:
 
     def __init__(self, headless=True, user_data_dir=None, navigation_timeout=DEFAULT_NAVIGATION_TIMEOUT,
@@ -52,6 +53,7 @@ class Game:
         self.browser = None
         self.page = None
         self.state = None
+        self._dims = None
         self.game_id = str(uuid.uuid4())
         self.state_id = 0
         self.game_url = game_url
@@ -78,9 +80,10 @@ class Game:
 
         self.page.setDefaultNavigationTimeout(self.navigation_timeout)
         await self.page.setViewport(dict(width=117, height=156))
-        await self.page.goto('{}?w={}&h={}'.format(self.game_url, self.initial_width, self.initial_height), {'waitUntil': 'networkidle2'})
+        await self.page.goto('{}?w={}&h={}'.format(self.game_url, self.initial_width, self.initial_height),
+                             {'waitUntil': 'networkidle2'})
         envjs_path = pathlib.Path(__file__).resolve().parent.joinpath('env.js')
-        await self.page.addScriptTag(dict(path=str(envjs_path)))        
+        await self.page.addScriptTag(dict(path=str(envjs_path)))
         await self.is_ready()
 
     @staticmethod
@@ -115,7 +118,7 @@ class Game:
     async def is_ready(self):
         await self.page.waitForFunction('''()=>{
             return neyboyChallenge && neyboyChallenge.isReady();
-        }''')     
+        }''')
 
     async def start(self):
         if random.randint(0, 1):
@@ -164,7 +167,7 @@ class Game:
                 return neyboyChallenge.runtime !== undefined &&
                        neyboyChallenge.runtime.getEventVariableByName('hiscore').data;
                 }''')
-        return int(hiscore) if hiscore else 1       
+        return int(hiscore) if hiscore else 1
 
     async def get_scores(self):
         scores = await self.page.evaluate('''() => {
@@ -234,17 +237,17 @@ class Game:
             encoded_snapshot = base64.b64encode(snapshot)
             return encoded_snapshot.decode('ascii')
 
-    async def get_state(self, include_snapshot='numpy', fmt='image/jpeg', quality=30, crop=True):
+    async def get_state(self, include_snapshot='numpy'):
         """
 
         :param include_snapshot: numpy, pil, ascii, bytes, None
         :param fmt:
         :param quality:
-        :return:
+        :return: a GameState instance
         """
         state = await self.page.evaluate('''(includeSnapshot, format, quality) => {
             return neyboyChallenge.state(includeSnapshot, format, quality);
-        }''', include_snapshot, fmt, quality)
+        }''', include_snapshot, 'image/jpeg', 30)
 
         self.state_id += 1
         self._dims = state['dimensions']
@@ -256,25 +259,19 @@ class Game:
         state['timestamp'] = dt.datetime.today().timestamp()
 
         if include_snapshot is not None:
-            x = 0
-            y = self.height / 2
-            height = self.height - y - (self.height - y) * 0.15 
-            width = self.width
             base64_string = state['snapshot']
             base64_string = re.sub('^data:image/.+;base64,', '', base64_string)
             imgdata = base64.b64decode(base64_string)
-
             bytes_io = io.BytesIO(imgdata)
-            image = Image.open(bytes_io)
-
-            if crop:
-                image = image.crop((x, y, x + width, y + height))
 
             if include_snapshot == 'numpy':
+                image = Image.open(bytes_io)
                 state['snapshot'] = np.array(image)
             elif include_snapshot == 'pil':
+                image = Image.open(bytes_io)
                 state['snapshot'] = image
             elif include_snapshot == 'ascii':
+                image = Image.open(bytes_io)
                 state['snapshot'] = self.screenshot_to_ascii(image, 0.1, 3)
             elif include_snapshot == 'bytes':
                 state['snapshot'] = bytes_io
@@ -328,4 +325,3 @@ class SyncGame:
                game_url=DEFAULT_GAME_URL, browser_ws_endpoint=None) -> 'SyncGame':
         o = sync(Game.create)(headless, user_data_dir, navigation_timeout, game_url, browser_ws_endpoint)
         return SyncGame(o)
-
